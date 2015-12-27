@@ -1,0 +1,107 @@
+---
+title: "Assignment for Regression Models"
+output: html_document
+---
+##Executive Summary
+Three possible models explain atleast 80 percent or more of the variance in the data. These are weight+cylinder or horsepower+transmission mode or horsepower+weight. It is worth noting that these three models say more or less the same story. The reason is that (cylinder and horsepwer) and (weight and transmission mode) are highly related. Hence, a causal relationship between mpg and transmission mode might be misleading. However, if we assume(subject expertise required) the transmission mode as the causative factor behind high or low weight then choice of transmission mode may lead to change in mpg. Considering the model (horsepower+transmission) as a resonable lens to look at the data, manual transmission leads to postive saving of 5 miles per gallon if we keep the horsepower constant.
+
+##Model
+###Exploratory Analysis
+Discrete variables are converted to factor variables and pairwise relationship is observed.
+```{r setup, cache = F, echo = F, message = F, warning = F, tidy = F, results='hide', fig.height=10, fig.width=10}
+library(datasets);library(ggplot2);library(GGally); library(dplyr); library(car)
+library(gridExtra)
+data(mtcars)
+mtcars=mutate(mtcars, am=as.factor(am), cyl=as.factor(cyl), vs=as.factor(vs),
+              gear=as.factor(gear), carb=as.factor(carb))
+#ggpairs(mtcars, lower = list(continuous = "smooth"),params = c(method = "loess"))
+```
+The important **continuous** variables are immediately identified from the correlation with *mpg*. These are *hp, wt, disp* and *drat*. With respect to these variables covariate characterstics of categorical variables is observed. Among those worth paying attention to is notably the relationship of transmission type with horsepower.  
+```{r, fig.height=7, fig.width=7, echo = FALSE, results='hide'}
+covariateTransmiss<-function(y,x,xlab){
+    plot(x, y, type = "n", frame = FALSE, xlab=xlab, ylab='mpg', main='relation with am')
+    abline(lm(y ~ x), lwd = 2)
+    y1<-y[mtcars$am==0]
+    y2<-y[mtcars$am==1]
+    x1<-x[mtcars$am==0]
+    x2<-x[mtcars$am==1]
+    abline(h = mean(y1), lwd = 3)
+    abline(h = mean(y2), lwd = 3)
+    fit1 <- lm(y1 ~ x1)
+    fit2 <- lm(y2 ~ x2)
+    abline(coef(fit1)[1], coef(fit1)[2], lwd = 3)
+    abline(coef(fit2)[1], coef(fit2)[2], lwd = 3)
+    points(x1, y1, pch = 21, col = "black", bg = "lightblue", cex = 2)
+    points(x2, y2, pch = 21, col = "black", bg = "salmon", cex = 2)
+}
+par(mfrow=c(2,2))
+covariateTransmiss(mtcars$mpg, mtcars$hp, 'hp') #not related to am
+covariateTransmiss(mtcars$mpg, mtcars$wt, 'wt') #related to am
+covariateTransmiss(mtcars$mpg, mtcars$disp, 'disp') #related to am
+covariateTransmiss(mtcars$mpg, mtcars$drat, 'drat') #related to am
+par(mfrow=c(1,1))
+```
+  
+Relationship of other categorical variables with continuous variables are also explored (in appendix). From this *am, vs* and *cyl* are deemed to be the important **categorical** variables.
+
+###Model Building
+Three models are built each using *disp, hp* and *cyl* as starting points because they are most related to *mpg*. Residual diagnsotics is done for possible errors and potential variable addition to each of the three models. One of the model expansion example:  
+`fit2<-lm(mpg~hp, data=mtcars); summary(fit2); plot(fit2)`  
+`plot(resid(lm(wt~hp, data=mtcars)), resid(lm(mpg~hp, data=mtcars)))`  
+`plot(resid(lm(drat~hp, data=mtcars)), resid(lm(mpg~hp, data=mtcars)))`  
+
+Second variable is added to the regression if it is weakly correlated to the first variable.  
+`fit21<-lm(mpg~hp+wt, data=mtcars); summary(fit21)`  
+Summary allows to check r squared and significance of additional variable. Additional diagnostics are run if both variables are significant in the updated regression. Normality check through Q-Q plot is done and absence of patterns in the residuals are checked. Influence measures are used to see the effects of outliers on regression.  
+`plot(fit21); hatvalues(fit21); dfbetas(fit21)`  
+
+Process is continued to find better second variables.  
+`fit22<-lm(mpg~hp+drat, data=mtcars); summary(fit22)`  
+
+`fit23<-lm(mpg~hp+am, data=mtcars); summary(fit23)`  
+`plot(fit23); hatvalues(fit23); dfbetas(fit23)`  
+
+`fit24<-lm(mpg~hp+vs, data=mtcars); summary(fit24)`  
+
+At this point 5 models using hp, 3 models using cyl and 2 models using disp as first variable are tested. It is concluded that addition of a third variable will lead to variance inflation and insignificant coefficients without any measurable gain over already above 80% R-Squared. This is so because the third variable is already correlated with the other two and hence will not furnish new information. This can be measured by including a third variable: `vif(fit23); fit231<-lm(mpg~hp+am+vs, data=mtcars); summary(fit231); vif(fit231)`
+
+###Inference and coefficient interpretation
+
+```{r}
+fit23<-lm(mpg~hp+am, data=mtcars)
+sumCoef<-summary(fit23)$coefficients
+sumCoef[2,1] + c(-1, 1) * qt(.975, df = fit23$df) * sumCoef[2, 2]
+```
+With 95% confidence, it is stated that holding transmission constant, change in horsepower by one positive unit leads to -0.1 to -0.04 change in Miles/gallon.
+```{r}
+sumCoef[3,1] + c(-1, 1) * qt(.975, df = fit23$df) * sumCoef[2, 2]
+```
+With 95% confidence, it is stated that holding horspower constant, change in transmission from automatic(0) to manual(1) leads to 5.26 to 5.29 change in Miles/gallon.  
+
+##Appendix
+**Pairwise variable relationships**  
+```{r, cache = F, echo = F, message = F, warning = F, tidy = F, results='hide', fig.height=10, fig.width=10}
+ggpairs(mtcars, lower = list(continuous = "smooth"),params = c(method = "loess"))
+```
+**Relationship of categorical variables with continuous variables**  
+```{r, cache = F, echo = F, message = F, warning = F, tidy = F, results='hide', fig.height=6, fig.width=7}
+covariatePlot<-function(x, title){
+    p1<-qplot(disp, mpg, color=x, data=mtcars)
+    p2<-qplot(wt, mpg, color=x, data=mtcars)
+    p3<-qplot(hp, mpg, color=x, data=mtcars)
+    p4<-qplot(drat, mpg, color=x, data=mtcars)
+    grid.arrange(p1, p2, p3, p4, main=title)
+}
+covariatePlot(mtcars$cyl, 'relation with cyl')
+covariatePlot(mtcars$vs, 'relation with vs')
+covariatePlot(mtcars$gear, 'relation with gear')
+covariatePlot(mtcars$carb, 'relation with carb')
+```
+  
+**Example residual diagnostics for** `fit23<-lm(mpg~hp+am, data=mtcars)`  
+```{r, cache = F, echo = F, message = F, warning = F, tidy = F, results='hide', fig.height=5, fig.width=6}
+par(mfrow=c(2,2))
+plot(fit23)
+par(mfrow=c(1,1))
+plot(resid(lm(wt~hp, data=mtcars)), resid(lm(mpg~hp, data=mtcars)))
+```
